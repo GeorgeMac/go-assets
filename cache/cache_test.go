@@ -207,8 +207,76 @@ func Test_Cache_Get_UsesCache(t *testing.T) {
 	}
 }
 
+func Test_Cache_Get_Matches(t *testing.T) {
+	// FileSystem with fake markdown in it
+	fs := &InMemoryFs{
+		Data: map[string][]byte{
+			"/path/to/markdown.html.md": []byte("some lovely markdown"),
+		},
+	}
+
+	// new cache matching file paths with `.md` extension
+	c := New(Fs(fs), Match(".md"))
+
+	// expect c.name to not be nil
+	if c.name == nil {
+		t.Fatalf(errstring, "function to be present", c.name)
+	}
+
+	// expect c.name to add extension
+	if c.name("somefile") != "somefile.md" {
+		t.Fatalf(errstring, "somefile.md", c.name("somefile"))
+	}
+
+	// ext without `.` prefix
+	c = New(Fs(fs), Match("md"))
+
+	// expect c.name to add extension with prefixed `.`
+	if c.name("otherfile") != "otherfile.md" {
+		t.Fatalf(errstring, "otherfile.md", c.name("otherfile"))
+	}
+
+	// Get `/path/to/markdown.html.md` which exists, but not with matches specifier.
+	data, ok, err := c.Get("/path/to/markdown.html.md")
+	// err should be nil
+	if err != nil {
+		t.Fatalf(errstring, "nil", err)
+	}
+
+	// ok should be false
+	if ok {
+		t.Fatalf(errstring, "false", ok)
+	}
+
+	// data slice should be empty
+	if len(data) > 0 {
+		t.Errorf(errstring, "length of data should be 0", len(data))
+	}
+
+	// Get `/path/to/markdown.html` which exists with matchers specifier.
+	data, ok, err = c.Get("/path/to/markdown.html")
+	// err should be nil
+	if err != nil {
+		t.Fatalf(errstring, "nil", err)
+	}
+
+	// ok should be true
+	if !ok {
+		t.Fatalf(errstring, "true", ok)
+	}
+
+	// data should be as expected
+	if string(data) != "some lovely markdown" {
+		t.Errorf(errstring, "here be some dataz", string(data))
+	}
+
+}
+
+// testfs implements FileSystem and delegates
+// to wrapped function of the same type
 type testfs func(name string) (io.Reader, error)
 
+// Open delegates to function receiver
 func (t testfs) Open(name string) (io.Reader, error) {
 	return t(name)
 }
