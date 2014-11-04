@@ -1,36 +1,51 @@
 `assets` package
 ===============
 
+### API v0.2
 
-Very simple asset vendoring package for `net/http` ServerMux
-
-## Example Usage
-
+#### Usage
 ```go
-pipeline := assets.New()
+// New asset handler for requests to '/assets/*' to serve files in './vendor/*'
+asset := assets.New('/assets', assets.Dir('/vendor'))
 
-// handles assets in the following way:
-// /assets/js/file.js -> javascipt
-// /assets/css/file.css -> css
-// /assets/images/file.png -> png image
-http.Handle(pipeline.Path(), pipeline.Handler())
-
-// variadic option setting
-pipeline = assets.New(assets.Root(“vendor”), assets.Js(“javascript”), assets.Css(“stylesheet”), assets.Images(“ims”), assets.Cache(true))
-
-// handles assets in the following way (+ it caches):
-// /vendor/javascript/file.js -> javascipt
-// /vendor/stylesheet/file.css -> css
-// /vendor/ims/file.png -> png image
-http.Handle(pipeline.Path(), pipeline.Handler())
+// Use `Assets.Pattern()` for pattern arg to `http.Handle`
+http.Handle(asset.Pattern(), asset)
 ```
 
-### Options
+#### `assets.Assets` Construction
+```go
+// New asset handler for pattern, with provided options
+assets.New(pattern string, options ...option)
+```
+
+#### Options
+```go
+// Root directory of assets folder
+assets.Dir(dir string)
+// Cache interface
+assets.SetCache(cache Cache)
+```
+#### `cache.Cache` Construction `(implements assets.Cache)`
+The following is an example of using `go-assets/cache` package implementation of `assets.Cache` interface. 
+
+Note that `type LessProcessor struct` does not exist. It is an example of an implementation of the `cache.Processor` interface, that is yet to exist.
 
 ```go
-assets.Root(pth string)
-assets.Js(pth string)
-assets.Css(pth string)
-assets.Images(pth string)
-assrts.Cache(cache bool)
+lessCache := cache.New(cache.Proc(&LessProcessor{}), 
+	cache.Match(".less"))
+
+// example:
+// GET /assets/default.css
+// reads /vendor/less/default.css.less on disk
+// writes result of Processor.Processor as response
+// and caches it.
+lessAssets := assets.New("/assets", 
+	assets.Dir("/vendor/less"), 
+	assets.Cache(lessCache))
+	
+http.Handle(lessAssets.Pattern(), lessAssets)
 ```
+
+
+
+

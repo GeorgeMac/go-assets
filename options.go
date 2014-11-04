@@ -1,32 +1,14 @@
 package assets
 
-type option func(*Assets)
+type option func(a *Assets)
 
-func Root(path string) func(*Assets) {
+func Dir(dir string) option {
 	return func(a *Assets) {
-		a.path = path
+		a.dir = dir
 	}
 }
 
-func Js(js string) func(*Assets) {
-	return func(a *Assets) {
-		a.js = js
-	}
-}
-
-func Css(css string) func(*Assets) {
-	return func(a *Assets) {
-		a.css = css
-	}
-}
-
-func Images(images string) func(*Assets) {
-	return func(a *Assets) {
-		a.images = images
-	}
-}
-
-func Cache(cache bool) func(*Assets) {
+func SetCache(cache Cache) option {
 	return func(a *Assets) {
 		a.cache = cache
 	}

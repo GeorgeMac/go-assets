@@ -1,118 +1,63 @@
 package assets
 
 import (
-	"io"
-	"io/ioutil"
 	"log"
-	"mime"
 	"net/http"
-	"os"
-	"path"
-	"sync"
+	"path/filepath"
+
+	"github.com/GeorgeMac/go-assets/cache"
 )
 
-type Assets struct {
-	path, js, css, images string
-	cache                 bool
-	acache                map[string][]byte
-	mu                    sync.RWMutex
+type Cache interface {
+	Get(path string) ([]byte, bool, error)
 }
 
-func New(options ...option) *Assets {
+type Assets struct {
+	pattern, dir string
+	cache        Cache
+}
+
+func New(pattern string, options ...option) *Assets {
 	a := &Assets{
-		path:   "assets",
-		js:     "js",
-		css:    "css",
-		images: "images",
-		acache: map[string][]byte{},
+		pattern: pattern,
+		dir:     pattern,
+		cache:   cache.New(),
 	}
 
-	for _, opt := range options {
-		opt(a)
+	for _, option := range options {
+		option(a)
 	}
 
 	return a
 }
 
-func (a *Assets) Path() string {
-	return path.Join("/", a.path) + "/"
-}
+func (a *Assets) ServeHttp(rw http.ResponseWriter, req *http.Request) {
+	subpath, err := filepath.Rel(a.pattern, req.URL.Path)
+	if err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		log.Printf("[ERROR] %v\n", err)
+		return
+	}
 
-func (a *Assets) Handler() http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		switch req.Method {
-		case "GET":
-			_, asset := path.Split(req.URL.Path)
-			typ, fpath := path.Split(asset)
-			switch typ {
-			case a.js:
-				w.Header().Set("Content-Type", "application/javascript")
-			case a.css:
-				w.Header().Set("Content-Type", "text/css")
-			case a.images:
-				ext := path.Ext(fpath)
-				w.Header().Set("Content-Type", mime.TypeByExtension(ext))
-			default:
-				w.Header().Set("Content-Type", "text/plain")
-			}
+	dpath := filepath.Join(a.dir, subpath)
+	data, ok, err := a.cache.Get(dpath)
+	if err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		log.Printf("[ERROR] %v\n", err)
+		return
+	}
 
-			// derive resouce path
-			resource := path.Join("./", a.path, typ, fpath)
-			if a.cache {
-				// check cache
-				a.mu.RLock()
-				log.Printf("[DEBUG] Checking cache for %s\n", resource)
-				if data, ok := a.acache[resource]; ok {
-					if _, err := w.Write(data); err != nil {
-						w.WriteHeader(http.StatusInternalServerError)
-					}
-					a.mu.RUnlock()
-					log.Println("[DEBUG] Cache hit!")
-					return
-				}
-				log.Println("[DEBUG] Cache miss!")
-				a.mu.RUnlock()
+	if !ok {
+		rw.WriteHeader(http.StatusNotFound)
+		log.Printf("[INFO] not found %s\n", dpath)
+		return
+	}
 
-				a.mu.Lock()
-				defer a.mu.Unlock()
-
-				data, err := ioutil.ReadFile(resource)
-				if err != nil {
-					if os.IsNotExist(err) {
-						w.WriteHeader(http.StatusNotFound)
-						return
-					}
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-
-				if _, err := w.Write(data); err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-
-				log.Printf("[DEBUG] Caching resource %s\n", resource)
-				a.acache[resource] = data
-				return
-			}
-
-			// no caching
-			log.Println("[DEBUG] Caching disabled")
-			fi, err := os.Open(resource)
-			if err != nil {
-				if os.IsNotExist(err) {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-
-			if _, err := io.Copy(w, fi); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-			}
-		default:
-			w.WriteHeader(http.StatusMethodNotAllowed)
-		}
+	if _, err := rw.Write(data); err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		log.Printf("[ERROR] %v\n", err)
+		log.Printf("[LOG] %s\n", string(data))
 	}
 }
+
+func (a *Assets) Pattern() string { return a.pattern + "/" }
