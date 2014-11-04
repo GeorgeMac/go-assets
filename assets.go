@@ -2,6 +2,7 @@ package assets
 
 import (
 	"log"
+	"mime"
 	"net/http"
 	"path/filepath"
 
@@ -56,8 +57,11 @@ func (a *Assets) ServeHttp(rw http.ResponseWriter, req *http.Request) {
 	if _, err := rw.Write(data); err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
 		log.Printf("[ERROR] %v\n", err)
-		log.Printf("[LOG] %s\n", string(data))
+		log.Printf("[INFO] %s\n", string(data))
 	}
+
+	ext := filepath.Ext(subpath)
+	rw.Header().Set("Content-Type", mime.TypeByExtension(ext))
 }
 
 func (a *Assets) Pattern() string { return a.pattern + "/" }
