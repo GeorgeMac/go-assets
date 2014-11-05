@@ -29,10 +29,14 @@ func New(pattern string, options ...option) *Assets {
 		option(a)
 	}
 
+	if a.pattern[len(a.pattern)-1] != '/' {
+		a.pattern += "/"
+	}
+
 	return a
 }
 
-func (a *Assets) ServeHttp(rw http.ResponseWriter, req *http.Request) {
+func (a *Assets) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	subpath, err := filepath.Rel(a.pattern, req.URL.Path)
 	if err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
@@ -64,4 +68,4 @@ func (a *Assets) ServeHttp(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", mime.TypeByExtension(ext))
 }
 
-func (a *Assets) Pattern() string { return a.pattern + "/" }
+func (a *Assets) Pattern() string { return a.pattern }

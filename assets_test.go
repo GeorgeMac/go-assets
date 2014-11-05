@@ -27,8 +27,8 @@ func Test_Assets_New(t *testing.T) {
 	c := cache.New(cache.Match("md"))
 	a = New("/assets", Dir("/vendor"), SetCache(c))
 
-	if a.pattern != "/assets" {
-		t.Fatalf(errstring, "/assets", a.pattern)
+	if a.pattern != "/assets/" {
+		t.Fatalf(errstring, "/assets/", a.pattern)
 	}
 
 	if a.dir != "/vendor" {
@@ -46,6 +46,12 @@ func Test_Assets_Pattern(t *testing.T) {
 	// check pattern is as expected with trailing slash
 	if a.Pattern() != "/assets/" {
 		t.Fatalf(errstring, "/assets/", a.Pattern())
+	}
+
+	a = New("/")
+
+	if a.Pattern() != "/" {
+		t.Fatalf(errstring, "/", a.Pattern())
 	}
 }
 
