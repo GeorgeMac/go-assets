@@ -64,8 +64,13 @@ func (a *Assets) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		log.Printf("[INFO] %s\n", string(data))
 	}
 
+	// derive Content-Type header
 	ext := filepath.Ext(subpath)
-	rw.Header().Set("Content-Type", mime.TypeByExtension(ext))
+	ct := mime.TypeByExtension(ext)
+	if ext == "" {
+		ct = "text/plain"
+	}
+	rw.Header().Set("Content-Type", ct)
 }
 
 func (a *Assets) Pattern() string { return a.pattern }
