@@ -20,12 +20,25 @@ func Proc(pr Processor) option {
 }
 
 func Match(extension string) option {
+	if !strings.HasPrefix(extension, ".") {
+		extension = "." + extension
+	}
+
 	return func(c *Cache) {
 		c.name = func(s string) string {
-			if strings.HasPrefix(extension, ".") {
-				return s + extension
-			}
-			return fmt.Sprintf("%s.%s", s, extension)
+			return fmt.Sprintf("%s%s", s, extension)
 		}
+		c.strip = func(s string) string {
+			if strings.HasSuffix(s, extension) {
+				return strings.TrimSuffix(s, extension)
+			}
+			return s
+		}
+	}
+}
+
+func PreProc(globs ...string) option {
+	return func(c *Cache) {
+		c.globs = globs
 	}
 }

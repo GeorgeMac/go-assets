@@ -13,7 +13,8 @@ var (
 	errstring string      = "Expected '%s', Got '%s'\n"
 	fs        *InMemoryFs = &InMemoryFs{
 		Data: map[string][]byte{
-			"/test/one": []byte("here be some dataz"),
+			"test/one":     []byte("here be some dataz"),
+			"test/file.md": []byte("here be some markdown"),
 		},
 	}
 )
@@ -44,8 +45,8 @@ func Test_Cache_New(t *testing.T) {
 func Test_Cache_Get(t *testing.T) {
 	c := New(Fs(fs))
 
-	// Get `/test/one`
-	data, ok, err := c.Get("/test/one")
+	// Get `test/one`
+	data, ok, err := c.Get("test/one")
 	// err should be nil
 	if err != nil {
 		t.Fatalf(errstring, "nil", err)
@@ -61,7 +62,7 @@ func Test_Cache_Get(t *testing.T) {
 		t.Errorf(errstring, "here be some dataz", string(data))
 	}
 
-	data, ok, err = c.Get("/test/two")
+	data, ok, err = c.Get("test/two")
 	// err should be nil
 	if err != nil {
 		t.Fatalf(errstring, "nil", err)
@@ -80,7 +81,7 @@ func Test_Cache_Get(t *testing.T) {
 	proc := &DummyProc{err: errors.New("processing error")}
 	c = New(Fs(fs), Proc(proc))
 
-	data, ok, err = c.Get("/test/one")
+	data, ok, err = c.Get("test/one")
 	// err should be as expected
 	if !reflect.DeepEqual(err, errors.New("processing error")) {
 		t.Fatalf(errstring, errors.New("processing error"), err)
@@ -100,7 +101,7 @@ func Test_Cache_Get(t *testing.T) {
 		return nil, errors.New("open error")
 	})))
 
-	data, ok, err = c.Get("/test/one")
+	data, ok, err = c.Get("test/one")
 	// err should be as expected
 	if !reflect.DeepEqual(err, errors.New("open error")) {
 		t.Fatalf(errstring, errors.New("open error"), err)
@@ -133,7 +134,7 @@ func Test_Cache_Get_OnFilesystem(t *testing.T) {
 	}
 
 	c := New()
-	// Get `/test/one`
+	// Get `test/one`
 	data, ok, err := c.Get(name)
 	// err should be nil
 	if err != nil {
@@ -153,14 +154,19 @@ func Test_Cache_Get_OnFilesystem(t *testing.T) {
 
 func Test_Cache_Get_UsesCache(t *testing.T) {
 	var called bool
-	fsn := testfs(func(name string) (io.Reader, error) {
-		called = true
-		return fs.Open(name)
-	})
+	fsn := testfs{
+		_open: func(name string) (io.Reader, error) {
+			called = true
+			return fs.Open(name)
+		},
+		_glob: func(glob string) ([]string, error) {
+			return fs.Glob(glob)
+		},
+	}
 	c := New(Fs(fsn))
 
-	// call get for `/test/one`
-	data, ok, err := c.Get("/test/one")
+	// call get for `test/one`
+	data, ok, err := c.Get("test/one")
 	// err should be nil
 	if err != nil {
 		t.Errorf(errstring, "nil", err)
@@ -184,8 +190,8 @@ func Test_Cache_Get_UsesCache(t *testing.T) {
 	// reset called to false
 	called = false
 
-	// call get for `/test/one`
-	data, ok, err = c.Get("/test/one")
+	// call get for `test/one`
+	data, ok, err = c.Get("test/one")
 	// err should be nil
 	if err != nil {
 		t.Errorf(errstring, "nil", err)
@@ -211,7 +217,7 @@ func Test_Cache_Get_Matches(t *testing.T) {
 	// FileSystem with fake markdown in it
 	fs := &InMemoryFs{
 		Data: map[string][]byte{
-			"/path/to/markdown.html.md": []byte("some lovely markdown"),
+			"path/to/markdown.html.md": []byte("some lovely markdown"),
 		},
 	}
 
@@ -236,8 +242,12 @@ func Test_Cache_Get_Matches(t *testing.T) {
 		t.Fatalf(errstring, "otherfile.md", c.name("otherfile"))
 	}
 
+	if c.strip("otherfile.md") != "otherfile" {
+		t.Fatalf(errstring, "otherfile", c.strip("otherfile.md"))
+	}
+
 	// Get `/path/to/markdown.html.md` which exists, but not with matches specifier.
-	data, ok, err := c.Get("/path/to/markdown.html.md")
+	data, ok, err := c.Get("path/to/markdown.html.md")
 	// err should be nil
 	if err != nil {
 		t.Fatalf(errstring, "nil", err)
@@ -254,7 +264,7 @@ func Test_Cache_Get_Matches(t *testing.T) {
 	}
 
 	// Get `/path/to/markdown.html` which exists with matchers specifier.
-	data, ok, err = c.Get("/path/to/markdown.html")
+	data, ok, err = c.Get("path/to/markdown.html")
 	// err should be nil
 	if err != nil {
 		t.Fatalf(errstring, "nil", err)
@@ -269,16 +279,68 @@ func Test_Cache_Get_Matches(t *testing.T) {
 	if string(data) != "some lovely markdown" {
 		t.Errorf(errstring, "here be some dataz", string(data))
 	}
+}
 
+func Test_Cache_PreProc(t *testing.T) {
+	var called bool
+	fsn := testfs{
+		_open: func(name string) (io.Reader, error) {
+			called = true
+			return fs.Open(name)
+		},
+		_glob: func(glob string) ([]string, error) {
+			return fs.Glob(glob)
+		},
+	}
+
+	c := New(Fs(fsn), Match(".md"), PreProc("test/*"))
+
+	// expect called to be true, as should have be preprocessed.
+	if !called {
+		t.Fatalf(errstring, "true", "false")
+	}
+
+	// reset called to false
+	called = false
+
+	// call get for `test/one`
+	data, ok, err := c.Get("test/file")
+	// err should be nil
+	if err != nil {
+		t.Errorf(errstring, "nil", err)
+	}
+
+	// ok should be true
+	if !ok {
+		t.Errorf(errstring, "true", ok)
+	}
+
+	// data should be as expected
+	if string(data) != "here be some markdown" {
+		t.Errorf(errstring, "here be some markdown", string(data))
+	}
+
+	// expect called to be false, as should be cached.
+	if called {
+		t.Fatalf(errstring, "false", "true")
+	}
 }
 
 // testfs implements FileSystem and delegates
 // to wrapped function of the same type
-type testfs func(name string) (io.Reader, error)
+type testfs struct {
+	_open func(name string) (io.Reader, error)
+	_glob func(glob string) ([]string, error)
+}
 
-// Open delegates to function receiver
+// Open delegates to _open in struct.
 func (t testfs) Open(name string) (io.Reader, error) {
-	return t(name)
+	return t._open(name)
+}
+
+// Glob delegates to _glob in struct.
+func (t testfs) Glob(glob string) ([]string, error) {
+	return t._glob(glob)
 }
 
 // DummyProc implements cache.Processor
