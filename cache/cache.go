@@ -3,7 +3,9 @@ package cache
 import (
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -14,6 +16,10 @@ type FileSystem interface {
 	// If the name isn't sufficient to locate the desired io.Reader,
 	// please return an os.ErrNotExist in order to be handled correctly.
 	Open(name string) (io.Reader, error)
+
+	// Glob is used to find matches on for a given glob string
+	// to file paths on the filesystem.
+	Glob(glob string) ([]string, error)
 }
 
 // Processor is used to process an io.Reader
@@ -26,8 +32,10 @@ type Cache struct {
 	fs    FileSystem
 	pr    Processor
 	name  func(string) string
+	strip func(string) string
 	cache map[string][]byte
 	mu    sync.RWMutex
+	globs []string
 }
 
 func New(opts ...option) *Cache {
@@ -35,11 +43,33 @@ func New(opts ...option) *Cache {
 		fs:    filesystem(os.Open),
 		pr:    processor(ioutil.ReadAll),
 		name:  func(s string) string { return s },
+		strip: func(s string) string { return s },
 		cache: make(map[string][]byte),
 	}
 
 	for _, opt := range opts {
 		opt(c)
+	}
+
+	// pre-compilation of assets
+	for _, glob := range c.globs {
+		matches, err := c.fs.Glob(glob)
+		if err != nil {
+			log.Printf("[ERROR] matching glob %s error %s", glob, err)
+			continue
+		}
+
+		for _, match := range matches {
+			path := c.strip(match)
+			_, ok, err := c.Get(path)
+			if err != nil {
+				log.Printf("[ERROR] precompiling asset '%s' path '%s' error '%s'", match, path, err)
+				continue
+			}
+			if !ok {
+				log.Printf("[WARNING] couldn't find asset '%s' path '%s'", match, path)
+			}
+		}
 	}
 
 	return c
@@ -84,6 +114,8 @@ func (c *Cache) Get(path string) ([]byte, bool, error) {
 type filesystem func(path string) (*os.File, error)
 
 func (f filesystem) Open(p string) (io.Reader, error) { return f(p) }
+
+func (f filesystem) Glob(glob string) ([]string, error) { return filepath.Glob(glob) }
 
 // processor is used to wrap ioutil.ReadAll in order
 // to implement Processor

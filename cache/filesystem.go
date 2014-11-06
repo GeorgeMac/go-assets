@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path"
 )
 
 type InMemoryFs struct {
@@ -17,4 +18,18 @@ func (fs *InMemoryFs) Open(name string) (io.Reader, error) {
 	}
 
 	return bytes.NewBuffer(data), nil
+}
+
+func (fs *InMemoryFs) Glob(glob string) ([]string, error) {
+	matches := []string{}
+	for k, _ := range fs.Data {
+		ok, err := path.Match(glob, k)
+		if err != nil {
+			return matches, err
+		}
+		if ok {
+			matches = append(matches, k)
+		}
+	}
+	return matches, nil
 }

@@ -37,6 +37,10 @@ c := cache.New(cache.Proc(processor))
 // same as before, but matching and stripping the file extension ".md"
 c := cache.New(cache.Proc(processor), cache.Match(".md"))
 
+// preprocess assets matching filepath globs
+// note: keep filepath globs matching over the directory being served
+c := cache.New(cache.Proc(processor), cache.Match(".md"), cache.PreProc("markdown/*", "markdown/pages/*"))
+
 // cache which uses an in memory filesystem, instead of disk
 fs := &InMemoryFs{
     Data: map[string][]byte{}
