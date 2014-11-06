@@ -1,8 +1,6 @@
 `assets` package
 ===============
 
-### API v0.2
-
 #### Usage
 ```go
 // New asset handler for requests to '/assets/*' to serve files in './vendor/*'
@@ -25,27 +23,49 @@ assets.Dir(dir string)
 // Cache interface
 assets.SetCache(cache Cache)
 ```
-#### `cache.Cache` Construction `(implements assets.Cache)`
-The following is an example of using `go-assets/cache` package implementation of `assets.Cache` interface. 
+#### Cache package
 
-Note that `type LessProcessor struct` does not exist. It is an example of an implementation of the `cache.Processor` interface, that is yet to exist.
+##### usage
 
 ```go
-lessCache := cache.New(cache.Proc(&LessProcessor{}), 
-	cache.Match(".less"))
+// simple in memory serving of files from disk
+c := cache.New()
 
-// example:
-// GET /assets/default.css
-// reads /vendor/less/default.css.less on disk
-// writes result of Processor.Processor as response
-// and caches it.
-lessAssets := assets.New("/assets", 
-	assets.Dir("/vendor/less"), 
-	assets.Cache(lessCache))
-	
-http.Handle(lessAssets.Pattern(), lessAssets)
+// in memory cache, serving files from disk and processing them with processor
+c := cache.New(cache.Proc(processor))
+
+// same as before, but matching and stripping the file extension ".md"
+c := cache.New(cache.Proc(processor), cache.Match(".md"))
+
+// cache which uses an in memory filesystem, instead of disk
+fs := &InMemoryFs{
+    Data: map[string][]byte{}
+}
+c := cache.New(cache.Fs(fs))
 ```
 
+##### example
+The following is an example of using `go-assets/cache` package implementation of `assets.Cache` interface.
 
+The following is taken from the [go-assets-processors/markdown](https://github.com/GeorgeMac/go-assets-processors) package.
+It is an example markdown -> html vendoring server using the go-assets `cache`.
 
+```go
+package main
 
+import (
+	"net/http"
+
+	"github.com/GeorgeMac/go-assets"
+	"github.com/GeorgeMac/go-assets-processors/markdown"
+	"github.com/GeorgeMac/go-assets/cache"
+)
+
+func main() {
+	md := markdown.New()
+	c := cache.New(cache.Proc(md), cache.Match(".md"))
+	a := assets.New("/", assets.Dir("markdown"), assets.SetCache(c))
+	http.Handle(a.Pattern(), a)
+	http.ListenAndServe(":8000", nil)
+}
+```
