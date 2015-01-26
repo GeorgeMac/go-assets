@@ -22,7 +22,7 @@ func (fs *InMemoryFs) Open(name string) (io.Reader, error) {
 
 func (fs *InMemoryFs) Glob(glob string) ([]string, error) {
 	matches := []string{}
-	for k, _ := range fs.Data {
+	for k := range fs.Data {
 		ok, err := path.Match(glob, k)
 		if err != nil {
 			return matches, err

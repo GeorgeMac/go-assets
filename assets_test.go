@@ -146,17 +146,17 @@ func Test_Assets_ServeHTTP_OK(t *testing.T) {
 	}
 
 	cases := []TestCase{
-		TestCase{
+		{
 			path:  "/assets/one",
 			body:  fs.Data["/vendor/one"],
 			ctype: "text/plain",
 		},
-		TestCase{
+		{
 			path:  "/assets/two.html",
 			body:  fs.Data["/vendor/two.html"],
 			ctype: "text/html; charset=utf-8",
 		},
-		TestCase{
+		{
 			path:  "/assets/three.js",
 			body:  fs.Data["/vendor/three.js"],
 			ctype: "application/javascript",
